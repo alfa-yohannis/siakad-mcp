@@ -43,9 +43,52 @@ Kredensial boleh dikosongkan kalau sudah ada di `.env` atau diberikan lewat
 
 Contoh utuh yang bisa dijalankan: [../examples/pustaka.py](../examples/pustaka.py).
 
-Yang diekspor: `KlienSiakad`, `BeritaAcaraKuliah`, `Kelas`, `JENIS_BUKTI`,
-`sisipkan_tanda_tangan`, `cari_tanda_tangan`, `cetak_html_ke_pdf`, fungsi setelan,
-dan kelas kesalahan `SiakadError`, `KonfigurasiError`, `CetakError`.
+Yang diekspor: `KlienSiakad`, `MenuSiakad`, `BeritaAcaraKuliah`, `Kelas`,
+`JadwalMengajar`, `SlotJadwal`, `DaftarHadir`, `Pertemuan`, `Mahasiswa`,
+`JENIS_BUKTI`, `sisipkan_tanda_tangan`, `cari_tanda_tangan`, `cetak_html_ke_pdf`,
+fungsi setelan, dan kelas kesalahan `SiakadError`, `KonfigurasiError`, `CetakError`.
+
+### Tiga menu SIAKAD
+
+Semuanya berangkat dari satu `KlienSiakad` dan berbagi dasar `MenuSiakad`
+(token CSRF, pengiriman, penelusuran halaman hasil):
+
+```python
+from siakad_mcp import KlienSiakad, JadwalMengajar, DaftarHadir
+
+klien = KlienSiakad().login()
+
+for slot in JadwalMengajar(klien).daftar("2026", "1"):
+    print(slot.waktu, slot.ruang, slot.label, slot.sks)
+
+hadir = DaftarHadir(klien)
+pertemuan, mahasiswa = hadir.mahasiswa_kelas("2026", "1", "IF31613")
+print(pertemuan.label, len(mahasiswa), "mahasiswa")
+```
+
+`DaftarHadir.detail(pertemuan)` mengembalikan balasan SIAKAD apa adanya kalau
+yang dibutuhkan lebih dari `nim`/`nama`/`kelas`/`status` yang dipetakan
+`Mahasiswa` — data pribadi tidak ikut mengalir kecuali memang diambil sendiri.
+
+### Menulis: `simpan_pembahasan`
+
+Satu-satunya operasi tulis di paket ini. `uji_coba=True` mengembalikan muatannya
+tanpa mengirim, dan isian lama tertimpa tanpa riwayat:
+
+```python
+hasil = hadir.simpan_pembahasan(
+    pertemuan, "Session-01: Pengantar", "Membahas kontrak kuliah", uji_coba=True
+)
+print(hasil["muatan"])
+```
+
+### Ekspor .xlsx
+
+```python
+from siakad_mcp.ekspor import tulis_xlsx     # butuh: pip install "siakad-mcp[excel]"
+
+tulis_xlsx(["NIM", "Nama"], [[m.nim, m.nama] for m in mahasiswa], "peserta.xlsx")
+```
 
 ### Kesalahan
 
@@ -120,7 +163,7 @@ Daftar endpoint dan badan permintaannya di [API.md](API.md).
 ## MCP
 
 ```bash
-claude mcp add bkd-siakad -- siakad-mcp
+claude mcp add siakad-mcp -- siakad-mcp
 ```
 
 Perintah `siakad-mcp` terpasang bersama paketnya, jadi tidak perlu menunjuk path
@@ -137,8 +180,12 @@ Daftar tool-nya di [MCP.md](MCP.md).
 
 Ikut terpasang bersama paketnya:
 
-| Perintah         | Sama dengan        |
-|------------------|--------------------|
-| `siakad-bap`     | `./siakad bap`     |
-| `siakad-mcp`     | `./siakad mcp`     |
-| `siakad-petakan` | `./siakad petakan` |
+| Perintah            | Sama dengan           |
+|---------------------|-----------------------|
+| `siakad-bap`        | `./siakad bap`        |
+| `siakad-jadwal`     | `./siakad jadwal`     |
+| `siakad-hadir`      | `./siakad hadir`      |
+| `siakad-mahasiswa`  | `./siakad mahasiswa`  |
+| `siakad-pembahasan` | `./siakad pembahasan` |
+| `siakad-mcp`        | `./siakad mcp`        |
+| `siakad-petakan`    | `./siakad petakan`    |

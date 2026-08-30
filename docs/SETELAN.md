@@ -44,6 +44,8 @@ sehingga aman dibagikan ke sesama pemakai satu perguruan tinggi.
 | `nama_instansi` | `Pradita`                       | label pada judul REST API dan instruksi MCP |
 | `path_login`    | `/login_process`                | endpoint POST login                         |
 | `path_laporan`  | `/report/berita_acara_kuliah`   | menu Berita Acara Perkuliahan               |
+| `path_jadwal`   | `/dosen/jadwal_mengajar`        | menu Jadwal Mengajar                        |
+| `path_daftar_hadir` | `/dosen/daftar_hadir`       | menu Daftar Hadir (pertemuan & mahasiswa)   |
 
 ### Blok tanda tangan
 

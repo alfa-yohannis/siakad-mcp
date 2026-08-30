@@ -14,7 +14,7 @@
     "siakad.yaml, dan digital_signs/ dicari."
   ],
   "mcpServers": {
-    "bkd-siakad": {
+    "siakad-mcp": {
       "command": "siakad-mcp",
       "args": [],
       "env": {

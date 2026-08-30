@@ -2,7 +2,12 @@
 # Titik masuk SIAKAD MCP. Virtualenv dan dependensinya disiapkan sendiri pada
 # jalankan pertama.
 #
-#   ./siakad bap --tahun 2025 --semester 2 --tujuan bukti/pengajaran
+#   ./siakad bap --tahun 2026 --semester 1 --tujuan bukti/pengajaran
+#   ./siakad jadwal --tahun 2026 --semester 1
+#   ./siakad hadir --tahun 2026 --semester 1 --tanggal 2026-09-01
+#   ./siakad mahasiswa --tahun 2026 --semester 1 --kode IF31613 --excel peserta.xlsx
+#   ./siakad pembahasan --tahun 2026 --semester 1 --kode IF31613 --dari bap.json --uji-coba
+#   ./siakad buka-kelas --tahun 2026 --semester 1 --menit 15    # buka kelas yang segera mulai
 #   ./siakad petakan /report/berita_acara_kuliah
 #   ./siakad api            # REST API di http://localhost:8000 (PORT=9001 untuk ganti port)
 #   ./siakad mcp            # MCP server lewat stdio
@@ -38,7 +43,7 @@ if [[ ! -f "$PENANDA" || "$AKAR/pyproject.toml" -nt "$PENANDA" ]]; then
 fi
 
 bantuan() {
-	sed -n '2,10p' "${BASH_SOURCE[0]}" | sed 's/^# \?//'
+	sed -n '2,14p' "${BASH_SOURCE[0]}" | sed 's/^# \?//'
 	exit 2
 }
 
@@ -48,6 +53,11 @@ shift
 
 case "$PERINTAH" in
 bap) exec "$PYTHON" -m siakad_mcp.cli "$@" ;;
+jadwal) exec "$VENV/bin/siakad-jadwal" "$@" ;;
+hadir) exec "$VENV/bin/siakad-hadir" "$@" ;;
+mahasiswa) exec "$VENV/bin/siakad-mahasiswa" "$@" ;;
+pembahasan) exec "$VENV/bin/siakad-pembahasan" "$@" ;;
+buka-kelas) exec "$VENV/bin/siakad-buka-kelas" "$@" ;;
 petakan) exec "$PYTHON" -m siakad_mcp.petakan_form "$@" ;;
 api) exec "$VENV/bin/uvicorn" siakad_mcp.api:app --port "${PORT:-8000}" "$@" ;;
 mcp) exec "$PYTHON" -m siakad_mcp.mcp_server "$@" ;;

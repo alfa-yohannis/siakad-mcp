@@ -1,8 +1,9 @@
 """REST API SIAKAD Pradita.
 
 Menyediakan data pengajaran yang dipakai sebagai bukti BKD: daftar kelas yang
-diampu, detail berita acara (topik + kehadiran), serta berkas PDF BAP dan
-Kehadiran yang sudah dibubuhi tanda tangan.
+diampu, detail berita acara (topik + kehadiran), jadwal mengajar, pertemuan
+beserta mahasiswanya, serta berkas PDF BAP dan Kehadiran yang sudah dibubuhi
+tanda tangan.
 
 Jalankan:
     ./siakad api              # http://localhost:8000
@@ -24,6 +25,8 @@ from pydantic import BaseModel, Field
 
 from siakad_mcp.berita_acara import JENIS_BUKTI, BeritaAcaraKuliah, Kelas
 from siakad_mcp.cetak_pdf import CetakError
+from siakad_mcp.daftar_hadir import DaftarHadir, Pertemuan
+from siakad_mcp.jadwal import JadwalMengajar
 from siakad_mcp.konfigurasi import (
     KonfigurasiError,
     akar_proyek,
@@ -48,7 +51,10 @@ def buat_app() -> FastAPI:
     app = FastAPI(
         title=f"SIAKAD {NAMA_INSTANSI} API",
         version="1.0.0",
-        description="Ambil bukti pengajaran dari SIAKAD: daftar kelas, berita acara, BAP, kehadiran.",
+        description=(
+            "Ambil data pengajaran dari SIAKAD: daftar kelas, berita acara, jadwal mengajar, "
+            "pertemuan dan mahasiswanya, serta PDF BAP dan kehadiran."
+        ),
     )
     app.include_router(router)
     return app
@@ -68,6 +74,28 @@ class PermintaanPeriode(Kredensial):
     tipe_semester: str = Field(description="1 ganjil, 2 genap, 3 semester pendek")
     prodi: str = Field(default="", description="Kode prodi, mis. TI. Kosong berarti semua")
     kode_mk: str = Field(default="", description="Batasi ke satu kode mata kuliah")
+
+
+class PermintaanPertemuan(PermintaanPeriode):
+    tanggal: str = Field(default="", description="YYYY-MM-DD; kosong berarti seluruh periode")
+
+
+class PermintaanMahasiswa(PermintaanPeriode):
+    kelompok_kelas: str = Field(default="", description="Mis. 'Kelas A'; kosong berarti kelas pertama")
+
+
+class PermintaanBukaKelas(PermintaanPeriode):
+    tanggal: str = Field(description="Tanggal pertemuan yang dibuka, YYYY-MM-DD")
+    kelompok_kelas: str = Field(default="", description="Mis. 'Kelas A', kalau tanggalnya bentrok")
+    uji_coba: bool = Field(default=False, description="true: tampilkan muatannya, jangan kirim")
+
+
+class PermintaanPembahasan(PermintaanPeriode):
+    tanggal: str = Field(description="Tanggal pertemuan yang diisi, YYYY-MM-DD")
+    topik: str = Field(description="Topik Pembahasan")
+    deskripsi: str = Field(default="", description="Deskripsi Pembahasan")
+    kelompok_kelas: str = Field(default="", description="Mis. 'Kelas A', kalau tanggalnya bentrok")
+    uji_coba: bool = Field(default=False, description="true: tampilkan muatannya, jangan kirim")
 
 
 class PermintaanBukti(PermintaanPeriode):
@@ -158,6 +186,94 @@ def pdf_bukti(permintaan: PermintaanBukti):
         dir_tanda_tangan=permintaan.tanda_tangan or None,
     )
     return FileResponse(berkas, media_type="application/pdf", filename=berkas.name)
+
+
+@router.post("/jadwal", summary="Jadwal mengajar satu periode")
+def jadwal_mengajar(permintaan: PermintaanPeriode):
+    """Hari, jam, ruang, dan SKS tiap kelas — dari menu Jadwal Mengajar."""
+    jadwal = JadwalMengajar(ambil_laporan(permintaan).klien).daftar(
+        permintaan.tahun_ajaran, permintaan.tipe_semester, permintaan.prodi
+    )
+    if permintaan.kode_mk:
+        jadwal = [satu for satu in jadwal if satu.kode_mk == permintaan.kode_mk]
+    return {"data": [satu.sebagai_dict() for satu in jadwal]}
+
+
+@router.post("/pertemuan", summary="Pertemuan pada menu Daftar Hadir")
+def daftar_pertemuan(permintaan: PermintaanPertemuan):
+    """Satu baris berarti satu tatap muka. `tanggal` kosong = seluruh periode."""
+    pertemuan = DaftarHadir(ambil_laporan(permintaan).klien).daftar_pertemuan(
+        permintaan.tahun_ajaran, permintaan.tipe_semester, permintaan.tanggal
+    )
+    if permintaan.kode_mk:
+        pertemuan = [satu for satu in pertemuan if satu.kode_mk == permintaan.kode_mk]
+    return {"data": [satu.sebagai_dict() for satu in pertemuan]}
+
+
+@router.post("/mahasiswa", summary="Mahasiswa yang terdaftar pada satu mata kuliah")
+def daftar_mahasiswa(permintaan: PermintaanMahasiswa):
+    """Diambil dari pertemuan pertama mata kuliah itu; pesertanya sama di semua pertemuan.
+
+    Hanya NIM, nama, kelas, dan status yang dikembalikan. Rekam pribadi lain yang
+    ikut dikirim SIAKAD (KTP, alamat, wali) sengaja tidak diteruskan.
+    """
+    if not permintaan.kode_mk:
+        raise HTTPException(status_code=422, detail="kode_mk wajib diisi")
+    try:
+        pertemuan, mahasiswa = DaftarHadir(ambil_laporan(permintaan).klien).mahasiswa_kelas(
+            permintaan.tahun_ajaran, permintaan.tipe_semester,
+            permintaan.kode_mk, permintaan.kelompok_kelas,
+        )
+    except SiakadError as galat:
+        raise HTTPException(status_code=404, detail=str(galat))
+    return {
+        "pertemuan": pertemuan.sebagai_dict(),
+        "jumlah": len(mahasiswa),
+        "data": [satu.__dict__ for satu in mahasiswa],
+    }
+
+
+def satu_pertemuan(hadir: DaftarHadir, permintaan) -> "Pertemuan":
+    """Pertemuan tunggal yang ditunjuk permintaan; menolak kalau ambigu.
+
+    Dipakai endpoint yang menulis: lebih baik menolak daripada mengubah
+    pertemuan yang tidak dimaksud.
+    """
+    cocok = [
+        satu
+        for satu in hadir.daftar_pertemuan(permintaan.tahun_ajaran, permintaan.tipe_semester, permintaan.tanggal)
+        if satu.kode_mk == permintaan.kode_mk
+        and (not permintaan.kelompok_kelas or satu.kelompok_kelas == permintaan.kelompok_kelas)
+    ]
+    if not cocok:
+        raise HTTPException(status_code=404, detail="Tidak ada pertemuan yang cocok")
+    if len(cocok) > 1:
+        raise HTTPException(
+            status_code=409,
+            detail=f"{len(cocok)} pertemuan cocok; sebutkan tanggal (dan kelompok_kelas) yang tepat",
+        )
+    return cocok[0]
+
+
+@router.post("/buka-kelas", summary="Buka satu pertemuan supaya mahasiswa bisa mengabsen")
+def buka_kelas(permintaan: PermintaanBukaKelas):
+    """**Menulis** ke SIAKAD, dan kelas yang sudah dibuka tidak bisa ditutup lagi."""
+    hadir = DaftarHadir(ambil_laporan(permintaan).klien)
+    return hadir.buka_kelas(satu_pertemuan(hadir, permintaan), uji_coba=permintaan.uji_coba)
+
+
+@router.post("/pembahasan", summary="Isi Topik dan Deskripsi Pembahasan satu pertemuan")
+def simpan_pembahasan(permintaan: PermintaanPembahasan):
+    """Satu-satunya endpoint yang **menulis** ke SIAKAD; isian lama akan tertimpa.
+
+    `uji_coba` bernilai true mengembalikan muatan yang akan dikirim tanpa
+    mengirimnya, supaya isian bisa diperiksa dulu.
+    """
+    hadir = DaftarHadir(ambil_laporan(permintaan).klien)
+    return hadir.simpan_pembahasan(
+        satu_pertemuan(hadir, permintaan), permintaan.topik, permintaan.deskripsi,
+        uji_coba=permintaan.uji_coba,
+    )
 
 
 @router.post("/bukti/semua", summary="Unduh BAP dan kehadiran seluruh kelas satu periode")

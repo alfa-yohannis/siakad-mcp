@@ -32,11 +32,20 @@ Dijalankan dari akar proyek, yaitu direktori berisi `siakad`.
 
 ```bash
 ./siakad bap ...        # unduh bukti BAP & kehadiran
+./siakad jadwal ...     # jadwal mengajar: hari, jam, ruang, SKS
+./siakad hadir ...      # pertemuan pada menu Daftar Hadir
+./siakad mahasiswa ...  # peserta satu mata kuliah (bisa diekspor .xlsx)
+./siakad pembahasan ... # ISI Topik & Deskripsi Pembahasan (satu-satunya yang menulis)
 ./siakad petakan <path> # petakan halaman saat menambah kemampuan
 ./siakad api            # REST API
 ./siakad mcp            # MCP server
 ./siakad uji            # unit test
 ```
+
+Terpasang lewat pip, namanya `siakad-bap`, `siakad-jadwal`, `siakad-hadir`,
+`siakad-mahasiswa`, `siakad-pembahasan`, `siakad-mcp`, dan `siakad-petakan`.
+
+Semua perintah pembacaan menerima `--tahun`, `--semester`, dan `--json`.
 
 ## `./siakad bap`
 
@@ -75,6 +84,81 @@ Contoh:
 
 Berkas yang sudah ada dilewati, jadi perintahnya aman diulang. Path relatif pada
 `--tujuan` dihitung dari akar proyek.
+
+## `./siakad jadwal`
+
+```bash
+./siakad jadwal --tahun 2026 --semester 1
+./siakad jadwal --tahun 2026 --semester 1 --json | jq '.[].waktu'
+```
+
+| Argumen     | Wajib | Keterangan                                  |
+|-------------|-------|---------------------------------------------|
+| `--tahun`   | ya    | Tahun ajaran, `2026` berarti 2026/2027      |
+| `--semester`| ya    | `1` ganjil, `2` genap, `3` semester pendek  |
+| `--prodi`   |       | Kode prodi; kosong berarti semua            |
+| `--json`    |       | Cetak JSON, bukan tabel                     |
+
+Keluarannya hari, jam, ruang, dan SKS tiap kelas — tiga hal terakhir tidak ada
+pada `./siakad bap --hanya-daftar`, yang membaca menu Berita Acara.
+
+## `./siakad hadir`
+
+```bash
+./siakad hadir --tahun 2026 --semester 1                      # seluruh periode
+./siakad hadir --tahun 2026 --semester 1 --tanggal 2026-09-01 # satu hari
+./siakad hadir --tahun 2026 --semester 1 --kode IF31613
+```
+
+Satu baris berarti satu tatap muka, ditutup keterangan `[belum dibuka]` atau
+`[dibuka HH:MM]`.
+
+## `./siakad mahasiswa`
+
+```bash
+./siakad mahasiswa --tahun 2026 --semester 1 --kode IF31613
+./siakad mahasiswa --tahun 2026 --semester 1 --kode IF30212 --kelas "Kelas A" \
+                   --excel "peserta/IF30212 - Kelas A.xlsx"
+```
+
+| Argumen   | Wajib | Keterangan                                                 |
+|-----------|-------|-------------------------------------------------------------|
+| `--kode`  | ya    | Kode mata kuliah                                            |
+| `--kelas` |       | Kelompok kelas, mis. `"Kelas A"`                            |
+| `--excel` |       | Simpan juga sebagai `.xlsx` (butuh extra `excel`)           |
+
+Pesertanya diambil dari pertemuan pertama mata kuliah itu — daftarnya sama di
+semua pertemuan. Yang dikeluarkan hanya NIM, nama, kelas, prodi, dan status;
+rekam pribadi lain yang ikut dikirim SIAKAD tidak diteruskan.
+
+## `./siakad pembahasan`
+
+Satu-satunya perintah yang **menulis** ke SIAKAD. Isian lama tertimpa.
+
+```bash
+./siakad pembahasan --tahun 2026 --semester 1 --kode IF31613 --dari bap.json --uji-coba
+./siakad pembahasan --tahun 2026 --semester 1 --kode IF31613 --dari bap.json
+```
+
+`--dari` menunjuk berkas JSON berisi daftar isian. Tiap isian menyebut
+pertemuannya lewat `tanggal` (paling pasti) atau `pertemuan_ke` (urutan tanggal):
+
+```json
+[
+  { "tanggal": "2026-08-31", "topik": "Session-01: Pengantar", "deskripsi": "Kontrak kuliah" },
+  { "pertemuan_ke": 2, "topik": "Session-02: ...", "deskripsi": "..." }
+]
+```
+
+| Argumen      | Wajib | Keterangan                                          |
+|--------------|-------|------------------------------------------------------|
+| `--kode`     | ya    | Kode mata kuliah                                     |
+| `--dari`     | ya    | Berkas JSON berisi isiannya                          |
+| `--kelas`    |       | Kelompok kelas, kalau mata kuliahnya berkelas ganda  |
+| `--uji-coba` |       | Tampilkan yang akan dikirim, tanpa menulis apa pun   |
+
+Jalankan `--uji-coba` dulu: isian yang salah tanggal tidak bisa dibatalkan,
+SIAKAD tidak menyimpan riwayat isian sebelumnya.
 
 ## `./siakad petakan`
 

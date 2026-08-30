@@ -15,7 +15,7 @@ Chrome/Chromium (untuk mencetak PDF).
 
 ```bash
 pip install "siakad-mcp[mcp]"
-claude mcp add bkd-siakad -- siakad-mcp
+claude mcp add siakad-mcp -- siakad-mcp
 ```
 
 Lalu minta asisten Anda:

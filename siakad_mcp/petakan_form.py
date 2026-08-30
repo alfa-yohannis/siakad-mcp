@@ -18,8 +18,8 @@ import sys
 
 from bs4 import BeautifulSoup
 
-from siakad_mcp.konfigurasi import simpan_ke_data
-from siakad_mcp.siakad_client import KlienSiakad
+from siakad_mcp.konfigurasi import KonfigurasiError, simpan_ke_data
+from siakad_mcp.siakad_client import KlienSiakad, SiakadError
 
 MAKS_OPSI_TAMPIL = 12
 POLA_AJAX = re.compile(r"""url\s*:\s*[`'"]([^`'"]+)[`'"]""")

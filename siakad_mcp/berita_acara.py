@@ -16,26 +16,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from bs4 import BeautifulSoup
-
 from siakad_mcp.cetak_pdf import cetak_html_ke_pdf
-from siakad_mcp.konfigurasi import baca_angka, baca_pengaturan
-from siakad_mcp.siakad_client import KlienSiakad, SiakadError
+from siakad_mcp.konfigurasi import baca_pengaturan
+from siakad_mcp.menu import MenuSiakad
+from siakad_mcp.siakad_client import SiakadError
 from siakad_mcp.tanda_tangan import sisipkan_tanda_tangan
 
 PATH_LAPORAN_BAWAAN = "/report/berita_acara_kuliah"
-BARIS_PER_HALAMAN_BAWAAN = 15
-BATAS_LAPORAN_BAWAAN_DETIK = 300
-
-
-def path_laporan() -> str:
-    """Path menu Berita Acara; instance lain bisa menaruhnya di alamat berbeda."""
-    return baca_pengaturan("SIAKAD_PATH_LAPORAN", PATH_LAPORAN_BAWAAN)
-
-
-def baris_per_halaman() -> int:
-    """Jumlah baris per halaman hasil pencarian, mengikuti setelan server."""
-    return baca_angka("SIAKAD_BARIS_PER_HALAMAN", BARIS_PER_HALAMAN_BAWAAN)
 
 # jenis bukti -> (endpoint ekspor, akhiran nama berkas, kunci setelan ukuran kertas)
 JENIS_BUKTI = {
@@ -100,55 +87,27 @@ class Kelas:
         }
 
 
-class BeritaAcaraKuliah:
+class BeritaAcaraKuliah(MenuSiakad):
     """Akses menu Berita Acara Perkuliahan untuk satu sesi SIAKAD."""
 
-    def __init__(self, klien: KlienSiakad):
-        self.klien = klien
-        self._token = ""
-
-    def token(self) -> str:
-        """Token CSRF halaman laporan, diambil sekali lalu dipakai ulang."""
-        if not self._token:
-            sup = BeautifulSoup(self.klien.ambil_halaman(path_laporan()).text, "lxml")
-            self._token = self.klien.baca_token_csrf(sup)
-        return self._token
-
-    def kirim(self, endpoint: str, muatan: dict):
-        """POST ke salah satu endpoint laporan dengan token CSRF yang benar."""
-        return self.klien.sesi_http.post(
-            f"{self.klien.base_url}{path_laporan()}/{endpoint}",
-            headers={"X-CSRF-TOKEN": self.token(), "X-Requested-With": "XMLHttpRequest"},
-            data={"_token": self.token(), **muatan},
-            timeout=baca_angka("SIAKAD_BATAS_LAPORAN_DETIK", BATAS_LAPORAN_BAWAAN_DETIK),
-        )
+    path_bawaan = PATH_LAPORAN_BAWAAN
+    kunci_path = "SIAKAD_PATH_LAPORAN"
 
     def daftar_kelas(
         self, tahun_ajaran: str, tipe_semester: str, prodi: str = "", pencarian: str = ""
     ) -> list[Kelas]:
         """Kelas pada satu periode. Semua halaman hasil ditelusuri sampai habis."""
-        semua: list[Kelas] = []
-        halaman = 1
-        while True:
-            jawaban = self.kirim(
-                "search",
-                {
-                    "page": halaman,
-                    "text_search": pencarian,
-                    "tipe_semester": tipe_semester,
-                    "tahun_ajaran": tahun_ajaran,
-                    "prodi_search": prodi,
-                },
-            )
-            if jawaban.status_code != 200:
-                raise SiakadError(f"Pencarian kelas gagal (HTTP {jawaban.status_code})")
-
-            isi = jawaban.json().get("rs_data", {})
-            baris = isi.get("data") or []
-            semua.extend(Kelas.dari_baris(satu) for satu in baris)
-            if len(baris) < baris_per_halaman() or len(semua) >= int(isi.get("total") or 0):
-                return semua
-            halaman += 1
+        baris = self.cari_semua(
+            "search",
+            {
+                "text_search": pencarian,
+                "tipe_semester": tipe_semester,
+                "tahun_ajaran": tahun_ajaran,
+                "prodi_search": prodi,
+            },
+            keterangan="kelas",
+        )
+        return [Kelas.dari_baris(satu) for satu in baris]
 
     def detail(self, kelas: Kelas) -> dict:
         """Topik pembahasan dan rekap kehadiran satu kelas, apa adanya dari SIAKAD."""

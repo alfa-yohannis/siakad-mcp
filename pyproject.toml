@@ -34,8 +34,10 @@ dependencies = [
 api = ["fastapi", "uvicorn[standard]", "python-multipart"]
 # MCPServer baru ada di mcp 2.x; 1.x memakai nama lama dan tidak bisa dipakai
 mcp = ["mcp>=2"]
+# hanya untuk ekspor .xlsx; pemakai yang cukup dengan JSON tidak perlu memasangnya
+excel = ["openpyxl"]
 uji = ["pytest"]
-semua = ["siakad-mcp[api,mcp,uji]"]
+semua = ["siakad-mcp[api,mcp,excel,uji]"]
 
 [project.urls]
 Homepage = "https://github.com/alfa-yohannis/siakad-mcp"
@@ -43,6 +45,11 @@ Issues = "https://github.com/alfa-yohannis/siakad-mcp/issues"
 
 [project.scripts]
 siakad-bap = "siakad_mcp.cli:jalankan"
+siakad-jadwal = "siakad_mcp.cli:jalankan_jadwal"
+siakad-hadir = "siakad_mcp.cli:jalankan_hadir"
+siakad-mahasiswa = "siakad_mcp.cli:jalankan_mahasiswa"
+siakad-pembahasan = "siakad_mcp.cli:jalankan_pembahasan"
+siakad-buka-kelas = "siakad_mcp.cli:jalankan_buka_kelas"
 siakad-mcp = "siakad_mcp.mcp_server:jalankan"
 siakad-petakan = "siakad_mcp.petakan_form:jalankan"
 

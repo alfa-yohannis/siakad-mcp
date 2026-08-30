@@ -1,9 +1,18 @@
 # SIAKAD MCP
 
-Aplikasi untuk menarik bukti pengajaran dari SIAKAD Pradita
-(<https://siakad.pradita.ac.id>): daftar kelas yang diampu, berita acara
-perkuliahan, dan daftar kehadiran mahasiswa — lengkap dengan tanda tangan,
-siap dilampirkan sebagai bukti BKD.
+Aplikasi untuk menarik data pengajaran dari SIAKAD Pradita
+(<https://siakad.pradita.ac.id>): daftar kelas yang diampu, jadwal mengajar,
+pertemuan beserta pesertanya, berita acara perkuliahan, dan daftar kehadiran
+mahasiswa — lengkap dengan tanda tangan, siap dilampirkan sebagai bukti BKD.
+Satu operasi tulis juga tersedia: mengisi Topik dan Deskripsi Pembahasan (BAP).
+
+Tiga menu SIAKAD yang dibaca:
+
+| Menu SIAKAD                   | Kelas Python        | Isinya                                     |
+|-------------------------------|---------------------|--------------------------------------------|
+| `/report/berita_acara_kuliah` | `BeritaAcaraKuliah` | topik pertemuan, rekap kehadiran, PDF bukti |
+| `/dosen/jadwal_mengajar`      | `JadwalMengajar`    | hari, jam, ruang, SKS                       |
+| `/dosen/daftar_hadir`         | `DaftarHadir`       | pertemuan per tanggal, peserta kuliah       |
 
 Pasangannya adalah [sister-mcp](https://github.com/alfa-yohannis/sister-mcp)
 yang mengisi data ke SISTER. Keduanya berdiri sendiri: kode, dokumentasi,
@@ -68,8 +77,8 @@ kertasnya — tanpa menyentuh kode. Daftarnya di [docs/SETELAN.md](docs/SETELAN.
 ### 1. MCP
 
 ```bash
-claude mcp add bkd-siakad -- siakad-mcp        # setelah `pip install`
-claude mcp add bkd-siakad -- /path/ke/siakad-mcp/siakad mcp   # dari klona
+claude mcp add siakad-mcp -- siakad-mcp        # setelah `pip install`
+claude mcp add siakad-mcp -- /path/ke/siakad-mcp/siakad mcp   # dari klona
 ```
 
 Untuk klien MCP lain, isi `mcpServers` dengan `"command": "siakad-mcp"`.
@@ -80,8 +89,9 @@ Cek servernya hidup tanpa mendaftarkannya dulu:
 ```
 
 Lalu minta asisten Anda, misalnya: *"Kelas apa saja yang saya ampu pada semester
-genap 2025/2026 menurut SIAKAD?"* Lima tool tersedia — daftar lengkapnya dan
-contoh prompt lain di [docs/MCP.md](docs/MCP.md).
+ganjil 2026/2027 menurut SIAKAD?"* Sepuluh tool tersedia — delapan membaca, dua
+(`buka_kelas`, `simpan_pembahasan`) menulis. Daftar lengkapnya dan contoh prompt
+lain di [docs/MCP.md](docs/MCP.md).
 
 ### 2. REST API
 
@@ -137,12 +147,20 @@ Selengkapnya di [docs/PUSTAKA.md](docs/PUSTAKA.md).
 ### CLI
 
 ```bash
-./siakad bap --tahun 2025 --semester 2 --hanya-daftar         # lihat kelasnya dulu
-./siakad bap --tahun 2025 --semester 2 --tujuan bukti/pengajaran
+./siakad jadwal --tahun 2026 --semester 1                      # jadwal + ruang + SKS
+./siakad hadir --tahun 2026 --semester 1 --tanggal 2026-09-01  # pertemuan satu hari
+./siakad mahasiswa --tahun 2026 --semester 1 --kode IF31613 \
+                   --excel peserta.xlsx                        # peserta kuliah
+./siakad pembahasan --tahun 2026 --semester 1 --kode IF31613 \
+                    --dari bap.json --uji-coba                 # isi BAP (menulis)
+
+./siakad bap --tahun 2026 --semester 1 --hanya-daftar          # lihat kelasnya dulu
+./siakad bap --tahun 2026 --semester 1 --tujuan bukti/pengajaran
 ```
 
-Terpasang sebagai paket, perintahnya `siakad-bap` dengan argumen yang sama.
-Hasilnya dua PDF per kelas:
+Terpasang sebagai paket, perintahnya `siakad-bap`, `siakad-jadwal`,
+`siakad-hadir`, `siakad-mahasiswa`, dan `siakad-pembahasan` dengan argumen yang
+sama. `./siakad bap` menghasilkan dua PDF per kelas:
 
 ```
 IF30812 - Pemrograman Berorientasi Objek - Kelas B - BAP.pdf
@@ -200,11 +218,15 @@ pyproject.toml              metadata paket, dependensi, dan perintah terpasang
 siakad                      launcher untuk pemakaian berdiri sendiri
 siakad_mcp/__init__.py      API publik paket ini
 siakad_mcp/siakad_client.py KlienSiakad: login, ambil halaman, baca/kirim form
+siakad_mcp/menu.py          MenuSiakad: token, kirim, telusuri halaman hasil
 siakad_mcp/berita_acara.py  BeritaAcaraKuliah + Kelas: daftar kelas, detail, unduh bukti
+siakad_mcp/jadwal.py        JadwalMengajar + SlotJadwal: hari, jam, ruang, SKS
+siakad_mcp/daftar_hadir.py  DaftarHadir + Pertemuan + Mahasiswa: peserta & isi BAP
 siakad_mcp/tanda_tangan.py  pembubuhan paraf & tanda tangan ke halaman cetak
 siakad_mcp/cetak_pdf.py     halaman cetak -> PDF lewat Chrome headless
+siakad_mcp/ekspor.py        tulis tabel ke .xlsx (extra `excel`)
 siakad_mcp/konfigurasi.py   akar proyek, setelan, kredensial
-siakad_mcp/cli.py           CLI (perintah siakad-bap)
+siakad_mcp/cli.py           CLI (siakad-bap, -jadwal, -hadir, -mahasiswa, -pembahasan)
 siakad_mcp/api.py           REST API: router yang bisa ditempel + app siap pakai
 siakad_mcp/mcp_server.py    MCP server (perintah siakad-mcp)
 siakad_mcp/petakan_form.py  alat bantu memetakan halaman saat menambah kemampuan
@@ -215,7 +237,14 @@ siakad_mcp/petakan_form.py  alat bantu memetakan halaman saat menambah kemampuan
 - **Login satu langkah.** `GET /login` untuk mengambil `_token`, lalu
   `POST /login_process`. Jauh lebih sederhana dari SSO SISTER.
 - **Isi tabel datang lewat AJAX.** Halaman laporan dikirim kosong; datanya dari
-  `POST /report/berita_acara_kuliah/search`.
+  `POST <path menu>/search`. Ketiga menu berperilaku sama, jadi bagiannya
+  ditulis sekali di `menu.py`.
+- **Daftar Hadir menuntut `tahun_akademik` berupa JSON.** Nilainya
+  `{"tahun_ajaran":"2026","tipe_semester":"1"}`; dikosongkan, balasannya HTTP 500
+  — padahal `tahun_ajaran`/`tipe_semester` di permintaan yang sama justru boleh
+  kosong.
+- **Nama field berbeda antar-endpoint.** `detail` memakai huruf besar
+  (`KD_MATA_KULIAH`), `save_pembahasan` memakai huruf kecil (`kd_mata_kuliah`).
 - **`sort_search` dan `order_search` harus tidak dikirim.** Kalau ikut terkirim
   dalam keadaan kosong, server membalas HTTP 500 tanpa penjelasan. Di browser
   keduanya bernilai `undefined` sehingga jQuery memang tidak mengirimkannya.

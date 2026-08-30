@@ -1,6 +1,6 @@
 # Contoh prompt untuk MCP SIAKAD
 
-Permintaan siap salin untuk asisten AI setelah server `bkd-siakad` didaftarkan
+Permintaan siap salin untuk asisten AI setelah server `siakad-mcp` didaftarkan
 (lihat [../docs/MCP.md](../docs/MCP.md)). Kredensial diambil sendiri dari `.env`.
 
 ## Melihat isi SIAKAD
@@ -40,6 +40,36 @@ ampu semester genap 2025/2026 sudah punya berkas BAP dan Kehadiran; lengkapi
 yang belum ada saja.
 ```
 
+## Jadwal, pertemuan, dan peserta
+
+```
+Jadwal mengajar saya semester ganjil 2026/2027 — hari, jam, ruang, dan SKS-nya.
+```
+
+```
+Siapa saja peserta IF31613 semester ganjil 2026/2027? Sebutkan jumlahnya.
+```
+
+```
+Pertemuan apa saja yang ada minggu ini, dan mana yang kelasnya belum dibuka?
+```
+
+## Mengisi BAP dan membuka kelas (menulis ke SIAKAD)
+
+```
+Isi Topik Pembahasan pertemuan 31 Agustus 2026 mata kuliah IF31613 dengan
+"Session-01: Peran & konsep arsitektur perangkat lunak". Tampilkan dulu apa yang
+akan dikirim sebelum benar-benar menyimpannya.
+```
+
+```
+Buka kelas IF30212 Kelas B untuk pertemuan hari ini.
+```
+
+Keduanya menulis ke SIAKAD: kelas yang sudah dibuka tidak bisa ditutup lagi, dan
+isian pembahasan lama tertimpa tanpa riwayat. Asisten diminta menjalankan
+`uji_coba` lebih dulu dan meminta persetujuan.
+
 ## Menyambung ke SISTER
 
 ```
@@ -57,7 +87,8 @@ supaya kita bisa menarik datanya juga.
 
 ## Yang perlu diketahui
 
-- Aplikasi ini hanya membaca SIAKAD, tidak pernah menulis apa pun ke sana.
+- Dari sepuluh tool, hanya `buka_kelas` dan `simpan_pembahasan` yang menulis ke
+  SIAKAD; delapan sisanya membaca.
 - Menghasilkan PDF butuh Chrome/Chromium; satu periode berisi 8 kelas memakan
   waktu sekitar satu menit.
 - SISTER menyimpan bukti sebagai **tautan**, bukan berkas. Jadi PDF hasil unduhan

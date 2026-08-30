@@ -7,6 +7,12 @@ Tiga cara memakainya, semuanya dari paket yang sama:
               for kelas in BeritaAcaraKuliah(klien).daftar_kelas("2025", "2"):
                   print(kelas.label)
 
+Tiga menu SIAKAD tersedia, semuanya berangkat dari satu `KlienSiakad`:
+
+    BeritaAcaraKuliah   topik pertemuan, rekap kehadiran, PDF BAP & Kehadiran
+    JadwalMengajar      jadwal satu periode: hari, jam, ruang, SKS
+    DaftarHadir         pertemuan per tanggal dan daftar mahasiswanya
+
     REST API  from siakad_mcp.api import router
               app_saya.include_router(router, prefix="/siakad")
 
@@ -28,6 +34,8 @@ from __future__ import annotations
 
 from siakad_mcp.berita_acara import JENIS_BUKTI, BeritaAcaraKuliah, Kelas
 from siakad_mcp.cetak_pdf import CetakError, cetak_html_ke_pdf
+from siakad_mcp.daftar_hadir import DaftarHadir, Mahasiswa, Pertemuan
+from siakad_mcp.jadwal import JadwalMengajar, SlotJadwal
 from siakad_mcp.konfigurasi import (
     KonfigurasiError,
     akar_proyek,
@@ -35,17 +43,24 @@ from siakad_mcp.konfigurasi import (
     atur_setelan,
     baca_pengaturan,
 )
+from siakad_mcp.menu import MenuSiakad
 from siakad_mcp.siakad_client import KlienSiakad, SiakadError
 from siakad_mcp.tanda_tangan import cari_tanda_tangan, sisipkan_tanda_tangan
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 __all__ = [
     # sesi dan data
     "KlienSiakad",
+    "MenuSiakad",
     "BeritaAcaraKuliah",
     "Kelas",
     "JENIS_BUKTI",
+    "JadwalMengajar",
+    "SlotJadwal",
+    "DaftarHadir",
+    "Pertemuan",
+    "Mahasiswa",
     # tanda tangan dan cetak
     "sisipkan_tanda_tangan",
     "cari_tanda_tangan",
