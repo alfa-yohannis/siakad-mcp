@@ -1,0 +1,17 @@
+requests
+beautifulsoup4
+lxml
+python-dotenv
+pydantic
+pillow
+
+# REST API
+fastapi
+uvicorn[standard]
+python-multipart
+
+# MCP — kode memakai mcp.server.mcpserver.MCPServer yang baru ada di 2.x
+mcp>=2
+
+# pengujian
+pytest

@@ -216,3 +216,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# This Project
+data
+# tanda tangan pindaian — data pribadi, jangan pernah ikut ter-commit
+digital_signs

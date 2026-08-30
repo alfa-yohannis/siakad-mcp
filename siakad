@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# Titik masuk SIAKAD MCP. Virtualenv dan dependensinya disiapkan sendiri pada
+# jalankan pertama.
+#
+#   ./siakad bap --tahun 2025 --semester 2 --tujuan bukti/pengajaran
+#   ./siakad petakan /report/berita_acara_kuliah
+#   ./siakad api            # REST API di http://localhost:8000 (PORT=9001 untuk ganti port)
+#   ./siakad mcp            # MCP server lewat stdio
+#   ./siakad uji            # unit test
+
+set -euo pipefail
+
+AKAR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VENV="${SIAKAD_VENV:-$AKAR/.venv}"
+PYTHON="$VENV/bin/python"
+
+# Akar proyek menentukan letak .env dan digital_signs/, serta titik hitung path
+# relatif. Bawaannya direktori ini; dibiarkan apa adanya kalau aplikasi dipanggil
+# dari ruang kerja yang lebih besar dan sudah menetapkannya sendiri.
+export BKD_AKAR_PROYEK="${BKD_AKAR_PROYEK:-$AKAR}"
+
+if [[ ! -x "$PYTHON" ]]; then
+	echo "Membuat virtualenv di $VENV" >&2
+	python3 -m venv "$VENV"
+fi
+
+# penanda ini ikut berubah setiap requirements.txt disunting, jadi paket baru
+# otomatis terpasang tanpa perlu mengingat menjalankan pip
+PENANDA="$VENV/.requirements-terpasang"
+if [[ ! -f "$PENANDA" || "$AKAR/requirements.txt" -nt "$PENANDA" ]]; then
+	echo "Memasang dependensi dari requirements.txt" >&2
+	"$VENV/bin/pip" install --quiet --upgrade pip
+	"$VENV/bin/pip" install --quiet -r "$AKAR/requirements.txt"
+	touch "$PENANDA"
+fi
+
+bantuan() {
+	sed -n '2,10p' "${BASH_SOURCE[0]}" | sed 's/^# \?//'
+	exit 2
+}
+
+PERINTAH="${1:-}"
+[[ -n "$PERINTAH" ]] || bantuan
+shift
+
+case "$PERINTAH" in
+bap) exec "$PYTHON" "$AKAR/scripts/unduh_bap.py" "$@" ;;
+petakan) exec "$PYTHON" "$AKAR/scripts/petakan_form.py" "$@" ;;
+api) exec "$VENV/bin/uvicorn" api:app --app-dir "$AKAR/scripts" --port "${PORT:-8000}" "$@" ;;
+mcp) exec "$PYTHON" "$AKAR/scripts/mcp_server.py" "$@" ;;
+uji) exec "$PYTHON" -m pytest "$AKAR/tests" "$@" ;;
+*) bantuan ;;
+esac
