@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "siakad-mcp"
+version = "1.0.0"
+description = "Ambil bukti pengajaran dari SIAKAD sebagai pustaka Python, REST API, atau MCP server"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Alfa Yohannis" }]
+keywords = ["siakad", "mcp", "bkd", "akademik", "pdf"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Intended Audience :: Education",
+    "Topic :: Education",
+]
+
+# Hanya yang dibutuhkan pemakaian sebagai pustaka. FastAPI dan mcp ada di extras
+# supaya proyek yang cuma butuh KlienSiakad tidak ikut memasang keduanya.
+dependencies = [
+    "requests",
+    "beautifulsoup4",
+    "lxml",
+    "python-dotenv",
+    "pydantic",
+    "pillow",
+    "pyyaml",
+]
+
+[project.optional-dependencies]
+api = ["fastapi", "uvicorn[standard]", "python-multipart"]
+# MCPServer baru ada di mcp 2.x; 1.x memakai nama lama dan tidak bisa dipakai
+mcp = ["mcp>=2"]
+uji = ["pytest"]
+semua = ["siakad-mcp[api,mcp,uji]"]
+
+[project.urls]
+Homepage = "https://github.com/alfa-yohannis/siakad-mcp"
+Issues = "https://github.com/alfa-yohannis/siakad-mcp/issues"
+
+[project.scripts]
+siakad-bap = "siakad_mcp.cli:jalankan"
+siakad-mcp = "siakad_mcp.mcp_server:jalankan"
+siakad-petakan = "siakad_mcp.petakan_form:jalankan"
+
+[tool.setuptools.packages.find]
+include = ["siakad_mcp*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

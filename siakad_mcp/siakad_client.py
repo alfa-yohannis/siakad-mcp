@@ -20,10 +20,24 @@ from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
 
-from konfigurasi import baca_kredensial, buat_sesi_http
+from siakad_mcp.konfigurasi import baca_angka, baca_kredensial, baca_pengaturan, buat_sesi_http
 
-SIAKAD_BASE_URL = "https://siakad.pradita.ac.id"
-PATH_PROSES_LOGIN = "/login_process"
+# alamat bawaan; instance lain diatur lewat SIAKAD_BASE_URL di .env atau
+# base_url: di siakad.yaml, tanpa menyentuh kode
+SIAKAD_BASE_URL_BAWAAN = "https://siakad.pradita.ac.id"
+PATH_PROSES_LOGIN_BAWAAN = "/login_process"
+
+# Batas waktu tiap jenis permintaan, dalam detik. Halaman biasa cepat; ekspor
+# laporan dan unggahan berkas bisa lama, jadi batasnya dipisah supaya yang
+# lambat tidak memaksa semua permintaan lain ikut menunggu selama itu.
+BATAS_LOGIN_BAWAAN_DETIK = 60
+BATAS_HALAMAN_BAWAAN_DETIK = 120
+BATAS_KIRIM_BAWAAN_DETIK = 300
+
+
+def path_proses_login() -> str:
+    """Path POST login; instance lain bisa memakai alamat berbeda."""
+    return baca_pengaturan("SIAKAD_PATH_LOGIN", PATH_PROSES_LOGIN_BAWAAN)
 
 
 class SiakadError(RuntimeError):
@@ -75,7 +89,12 @@ class Formulir:
 class KlienSiakad:
     """Sesi SIAKAD milik satu pengguna. Cukup beri email dan password."""
 
-    def __init__(self, email: str | None = None, password: str | None = None):
+    def __init__(
+        self,
+        email: str | None = None,
+        password: str | None = None,
+        base_url: str = "",
+    ):
         # kalau tidak diberikan, jatuh ke .env supaya pemakaian CLI tetap ringkas
         if not email or not password:
             kredensial = baca_kredensial("SIAKAD_USERNAME", "SIAKAD_PASSWORD")
@@ -83,12 +102,15 @@ class KlienSiakad:
             password = password or kredensial["SIAKAD_PASSWORD"]
         self.email = email
         self.password = password
+        self.base_url = (base_url or baca_pengaturan("SIAKAD_BASE_URL", SIAKAD_BASE_URL_BAWAAN)).rstrip("/")
         self.sesi_http = buat_sesi_http()
         self.url_beranda = ""
 
     def login(self) -> "KlienSiakad":
         """Login satu langkah ke SIAKAD; error kalau kredensialnya ditolak."""
-        halaman_login = self.sesi_http.get(f"{SIAKAD_BASE_URL}/login", timeout=60)
+        halaman_login = self.sesi_http.get(
+            f"{self.base_url}/login", timeout=baca_angka("SIAKAD_BATAS_LOGIN_DETIK", BATAS_LOGIN_BAWAAN_DETIK)
+        )
         halaman_login.raise_for_status()
         sup = BeautifulSoup(halaman_login.text, "lxml")
 
@@ -101,9 +123,9 @@ class KlienSiakad:
         isian["password"] = self.password
 
         jawaban = self.sesi_http.post(
-            f"{SIAKAD_BASE_URL}{PATH_PROSES_LOGIN}",
+            f"{self.base_url}{path_proses_login()}",
             data=isian,
-            timeout=60,
+            timeout=baca_angka("SIAKAD_BATAS_LOGIN_DETIK", BATAS_LOGIN_BAWAAN_DETIK),
             allow_redirects=True,
             headers={"Referer": halaman_login.url},
         )
@@ -118,8 +140,8 @@ class KlienSiakad:
 
     def ambil_halaman(self, path_atau_url: str):
         """GET halaman SIAKAD. Terima path relatif maupun URL penuh."""
-        url = path_atau_url if path_atau_url.startswith("http") else urljoin(SIAKAD_BASE_URL, path_atau_url)
-        jawaban = self.sesi_http.get(url, timeout=120)
+        url = path_atau_url if path_atau_url.startswith("http") else urljoin(self.base_url, path_atau_url)
+        jawaban = self.sesi_http.get(url, timeout=baca_angka("SIAKAD_BATAS_HALAMAN_DETIK", BATAS_HALAMAN_BAWAAN_DETIK))
         jawaban.raise_for_status()
         return jawaban
 
@@ -176,7 +198,7 @@ class KlienSiakad:
             formulir.action,
             data=muatan,
             files=berkas or None,
-            timeout=300,
+            timeout=baca_angka("SIAKAD_BATAS_KIRIM_DETIK", BATAS_KIRIM_BAWAAN_DETIK),
             headers={"Referer": formulir.url, "X-Requested-With": "XMLHttpRequest"},
         )
         return self.baca_hasil_kirim(jawaban)
@@ -231,8 +253,8 @@ class KlienSiakad:
         menu = {}
         for tautan in sup.find_all("a", href=True):
             teks = tautan.get_text(" ", strip=True)
-            alamat = urljoin(SIAKAD_BASE_URL, tautan["href"])
-            if teks and alamat.startswith(SIAKAD_BASE_URL) and "logout" not in alamat.lower():
+            alamat = urljoin(self.base_url, tautan["href"])
+            if teks and alamat.startswith(self.base_url) and "logout" not in alamat.lower():
                 menu.setdefault(alamat, teks[:60])
         return [{"nama": nama, "url": alamat} for alamat, nama in sorted(menu.items(), key=lambda x: x[1])]
 

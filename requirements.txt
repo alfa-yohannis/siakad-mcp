@@ -1,17 +1,7 @@
-requests
-beautifulsoup4
-lxml
-python-dotenv
-pydantic
-pillow
-
-# REST API
-fastapi
-uvicorn[standard]
-python-multipart
-
-# MCP — kode memakai mcp.server.mcpserver.MCPServer yang baru ada di 2.x
-mcp>=2
-
-# pengujian
-pytest
+# Daftar dependensi yang sebenarnya ada di pyproject.toml — berkas ini hanya
+# jalan pintas supaya `pip install -r requirements.txt` tetap bekerja, tanpa
+# menyalin daftarnya dua kali (yang cepat sekali jadi tidak sinkron).
+#
+#   pip install -e .            pustaka saja
+#   pip install -e ".[semua]"   + REST API, MCP, dan pytest
+-e .[semua]

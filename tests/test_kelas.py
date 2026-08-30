@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from berita_acara import JENIS_BUKTI, BeritaAcaraKuliah, Kelas
-from conftest import JawabanTiruan, KlienTiruan
+from siakad_mcp import berita_acara
+from siakad_mcp.berita_acara import JENIS_BUKTI, BeritaAcaraKuliah, Kelas
+from conftest import JawabanTiruan, KlienTiruan, isi_folder_tanda_tangan
 
 
 def test_kelas_dibaca_dari_baris_hasil_pencarian(baris_kelas):
@@ -67,8 +68,48 @@ def test_jenis_bukti_hanya_bap_dan_kehadiran():
 
 
 def test_jenis_bukti_asing_ditolak(baris_kelas):
-    from siakad_client import SiakadError
+    from siakad_mcp.siakad_client import SiakadError
 
     laporan = BeritaAcaraKuliah(KlienTiruan())
     with pytest.raises(SiakadError, match="tidak dikenal"):
         laporan.halaman_cetak(Kelas.dari_baris(baris_kelas), "nilai")
+
+
+@pytest.fixture
+def bap_tercetak(monkeypatch, halaman_bap, tmp_path):
+    """Cegat pencetakan PDF supaya HTML yang akan dicetak bisa diperiksa."""
+    tercetak = {}
+
+    def cetak_tiruan(html, tujuan, *, ukuran="A4"):
+        tercetak["html"] = html
+        tujuan.parent.mkdir(parents=True, exist_ok=True)
+        tujuan.write_bytes(b"%PDF-uji")
+        return tujuan
+
+    monkeypatch.setattr(berita_acara, "cetak_html_ke_pdf", cetak_tiruan)
+    monkeypatch.setattr(BeritaAcaraKuliah, "halaman_cetak", lambda self, kelas, jenis: halaman_bap)
+    return tercetak
+
+
+def test_folder_tanda_tangan_dari_pemanggil_dipakai_saat_unduh(bap_tercetak, baris_kelas, tmp_path):
+    """Folder yang dikirim klien harus sampai ke pembubuhan tanda tangan."""
+    ttd = isi_folder_tanda_tangan(tmp_path / "ttd-klien", "kong", "spider")
+
+    laporan = BeritaAcaraKuliah(KlienTiruan())
+    laporan.unduh_bukti(
+        Kelas.dari_baris(baris_kelas), "bap", tmp_path / "keluaran", dir_tanda_tangan=ttd
+    )
+
+    assert "<img" in bap_tercetak["html"]
+
+
+def test_folder_tanda_tangan_kosong_menghasilkan_bap_polos(bap_tercetak, baris_kelas, tmp_path):
+    kosong = tmp_path / "ttd-kosong"
+    kosong.mkdir()
+
+    laporan = BeritaAcaraKuliah(KlienTiruan())
+    laporan.unduh_bukti(
+        Kelas.dari_baris(baris_kelas), "bap", tmp_path / "keluaran", dir_tanda_tangan=kosong
+    )
+
+    assert "<img" not in bap_tercetak["html"]

@@ -20,14 +20,11 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from dependensi import pastikan_dependensi
 
-# harus dipanggil sebelum impor paket pihak ketiga di bawahnya
-pastikan_dependensi()
-
-from berita_acara import JENIS_BUKTI, BeritaAcaraKuliah
-from konfigurasi import AKAR_PROYEK, DIR_DATA
-from siakad_client import KlienSiakad, SiakadError
+from siakad_mcp.berita_acara import JENIS_BUKTI, BeritaAcaraKuliah
+from siakad_mcp.cetak_pdf import CetakError
+from siakad_mcp.konfigurasi import KonfigurasiError, akar_proyek, dir_data
+from siakad_mcp.siakad_client import KlienSiakad, SiakadError
 
 
 BULAN_INDONESIA = [
@@ -50,9 +47,11 @@ def baca_argumen() -> argparse.Namespace:
                           help="1 ganjil, 2 genap, 3 semester pendek")
     pengurai.add_argument("--prodi", default="", help="Kode prodi, mis. TI. Kosong berarti semua")
     pengurai.add_argument("--kode", default="", help="Batasi ke satu kode mata kuliah")
-    pengurai.add_argument("--tujuan", default=str(DIR_DATA / "bap"), help="Direktori penyimpanan PDF")
+    pengurai.add_argument("--tujuan", default=str(dir_data() / "bap"), help="Direktori penyimpanan PDF")
     pengurai.add_argument("--tanggal", default=tanggal_hari_ini(),
                           help="Tanggal pada blok tanda tangan (bawaan: hari ini)")
+    pengurai.add_argument("--tanda-tangan", default="", metavar="DIR",
+                          help="Folder berkas tanda tangan (bawaan: digital_signs/ di akar proyek)")
     pengurai.add_argument("--timpa", action="store_true", help="Tulis ulang berkas yang sudah ada")
     pengurai.add_argument("--tanpa-ttd", action="store_true", help="Cetak tanpa membubuhkan tanda tangan")
     pengurai.add_argument("--hanya-daftar", action="store_true", help="Tampilkan kelasnya saja, tanpa mengunduh")
@@ -63,7 +62,7 @@ def main() -> int:
     argumen = baca_argumen()
     tujuan = Path(argumen.tujuan)
     if not tujuan.is_absolute():
-        tujuan = (AKAR_PROYEK / tujuan).resolve()
+        tujuan = (akar_proyek() / tujuan).resolve()
 
     laporan = BeritaAcaraKuliah(KlienSiakad().login())
     print(f"Login SIAKAD OK — periode {argumen.tahun}/{argumen.semester}\n")
@@ -91,8 +90,9 @@ def main() -> int:
                     timpa=argumen.timpa,
                     bertanda_tangan=not argumen.tanpa_ttd,
                     tanggal_tanda_tangan=argumen.tanggal,
+                    dir_tanda_tangan=argumen.tanda_tangan or None,
                 )
-            except (SiakadError, SystemExit) as galat:
+            except (SiakadError, CetakError, KonfigurasiError) as galat:
                 print(f"  GAGAL {satu.label} [{jenis}]: {galat}")
                 gagal += 1
                 continue
@@ -102,5 +102,18 @@ def main() -> int:
     return 1 if gagal else 0
 
 
+def jalankan() -> int:
+    """Titik masuk perintah `siakad-bap`.
+
+    Kesalahan pustaka sengaja tidak dibiarkan menjadi traceback: pemakai CLI
+    butuh satu baris pesan yang bisa ditindaklanjuti, bukan jejak tumpukan.
+    """
+    try:
+        return main()
+    except (SiakadError, CetakError, KonfigurasiError) as galat:
+        print(f"Gagal: {galat}", file=sys.stderr)
+        return 1
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(jalankan())

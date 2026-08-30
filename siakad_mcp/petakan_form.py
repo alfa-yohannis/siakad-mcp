@@ -15,15 +15,11 @@ import json
 import re
 import sys
 
-from dependensi import pastikan_dependensi
-
-# harus dipanggil sebelum impor paket pihak ketiga di bawahnya
-pastikan_dependensi()
 
 from bs4 import BeautifulSoup
 
-from konfigurasi import simpan_ke_data
-from siakad_client import KlienSiakad
+from siakad_mcp.konfigurasi import simpan_ke_data
+from siakad_mcp.siakad_client import KlienSiakad
 
 MAKS_OPSI_TAMPIL = 12
 POLA_AJAX = re.compile(r"""url\s*:\s*[`'"]([^`'"]+)[`'"]""")
@@ -88,5 +84,14 @@ def main() -> int:
     return 0
 
 
+def jalankan() -> int:
+    """Titik masuk perintah `siakad-petakan`."""
+    try:
+        return main()
+    except (SiakadError, KonfigurasiError) as galat:
+        print(f"Gagal: {galat}", file=sys.stderr)
+        return 1
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(jalankan())

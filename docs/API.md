@@ -1,10 +1,54 @@
 # Referensi REST API SIAKAD
 
+## Menjalankan
+
+**1. Pasang.** Butuh Python 3.10+ dan Chrome/Chromium untuk mencetak PDF.
+
 ```bash
-./siakad api          # http://localhost:8000  (PORT=9001 ./siakad api)
+pip install "siakad-mcp[api]"
 ```
 
-Dokumentasi interaktif di `/docs`, skema mesin di `/openapi.json`.
+**2. Hidupkan servernya.**
+
+```bash
+uvicorn siakad_mcp.api:app --port 8000     # setelah pip install
+./siakad api                               # dari klona; PORT=9001 untuk ganti port
+```
+
+**3. Pastikan hidup.**
+
+```bash
+curl -s localhost:8000/openapi.json | head -c 80
+```
+
+Dokumentasi interaktif di <http://localhost:8000/docs>, skema mesin di
+`/openapi.json`.
+
+**4. Permintaan pertama.**
+
+```bash
+curl -X POST localhost:8000/kelas -H 'Content-Type: application/json' \
+  -d '{"username":"...","password":"...","tahun_ajaran":"2025","tipe_semester":"2"}'
+```
+
+Contoh lengkap yang bisa dijalankan: [../examples/klien_api.sh](../examples/klien_api.sh).
+
+### Menempel ke aplikasi FastAPI sendiri
+
+Rute dikumpulkan di `router`, jadi tidak harus dijalankan sebagai server
+terpisah:
+
+```python
+from fastapi import FastAPI
+from siakad_mcp.api import router
+
+app = FastAPI()
+app.include_router(router, prefix="/siakad")
+```
+
+Contoh utuh: [../examples/api_sendiri.py](../examples/api_sendiri.py).
+
+## Kredensial
 
 Setiap permintaan membawa `username` dan `password` SIAKAD. Sesi login disimpan
 di memori server selama 15 menit lalu dipakai ulang.
@@ -83,6 +127,7 @@ Badan `/kelas` ditambah:
 | `jenis`           | `bap`   | `bap` atau `kehadiran`                            |
 | `tujuan`          | `data/bap` | direktori penyimpanan; path relatif dari akar proyek |
 | `tanggal`         | kosong  | tanggal pada blok tanda tangan                    |
+| `tanda_tangan`    | kosong  | folder berkas tanda tangan; path relatif dari akar proyek |
 | `timpa`           | `false` | tulis ulang berkas yang sudah ada                 |
 | `bertanda_tangan` | `true`  | bubuhkan paraf dan tanda tangan pejabat           |
 

@@ -1,0 +1,27 @@
+{
+  "_catatan": [
+    "Konfigurasi server MCP untuk klien selain Claude Code (Cursor, Zed, dsb.).",
+    "Salin blok mcpServers ke berkas konfigurasi klien Anda.",
+    "",
+    "Perintah `siakad-mcp` ikut terpasang bersama paketnya:",
+    "    pip install \"siakad-mcp[mcp]\"",
+    "",
+    "Dari klona repositori, ganti command menjadi path absolut ke launcher:",
+    "    \"command\": \"/path/ke/siakad-mcp/siakad\", \"args\": [\"mcp\"]",
+    "",
+    "Kredensial boleh lewat env di bawah, lewat .env di akar proyek, atau",
+    "dikirim per pemanggilan tool. SIAKAD_AKAR_PROYEK menentukan di mana .env,",
+    "siakad.yaml, dan digital_signs/ dicari."
+  ],
+  "mcpServers": {
+    "bkd-siakad": {
+      "command": "siakad-mcp",
+      "args": [],
+      "env": {
+        "SIAKAD_AKAR_PROYEK": "/path/ke/ruang-kerja-anda",
+        "SIAKAD_USERNAME": "nama.anda@pradita.ac.id",
+        "SIAKAD_PASSWORD": "..."
+      }
+    }
+  }
+}

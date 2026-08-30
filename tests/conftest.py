@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 AKAR = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(AKAR / "scripts"))
+sys.path.insert(0, str(AKAR))
 
 # Data contoh; nama tokoh dan nomor induk di seluruh berkas uji sengaja dikarang.
 BARIS_KELAS = {
@@ -43,6 +43,22 @@ HALAMAN_BAP = """
 </table>
 </body></html>
 """
+
+
+# PNG 1x1 piksel; cukup untuk menguji penyisipan tanpa bergantung berkas asli
+PNG_SEPIKSEL = (
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+)
+
+
+def isi_folder_tanda_tangan(direktori: Path, *nama: str) -> Path:
+    """Buat folder tanda tangan tiruan berisi berkas PNG bernama `nama`."""
+    from base64 import b64decode
+
+    direktori.mkdir(parents=True, exist_ok=True)
+    for satu in nama:
+        (direktori / f"{satu}.png").write_bytes(b64decode(PNG_SEPIKSEL))
+    return direktori
 
 
 class JawabanTiruan:

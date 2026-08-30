@@ -1,7 +1,34 @@
 # Referensi CLI SIAKAD
 
-Dijalankan dari akar proyek, yaitu direktori berisi `siakad`. Virtualenv dan
-dependensinya disiapkan sendiri pada jalankan pertama.
+## Menjalankan
+
+**1. Pasang.** Butuh Python 3.10+ dan Chrome/Chromium untuk mencetak PDF.
+
+```bash
+git clone https://github.com/alfa-yohannis/siakad-mcp.git
+cd siakad-mcp
+./siakad uji            # jalankan pertama menyiapkan .venv + dependensi
+```
+
+Terpasang lewat `pip install siakad-mcp`, perintahnya `siakad-bap` dengan
+argumen yang sama persis — `./siakad bap` dan `siakad-bap` setara.
+
+**2. Isi kredensial.**
+
+```bash
+cp .env.contoh .env     # SIAKAD_USERNAME, SIAKAD_PASSWORD
+```
+
+**3. Lihat dulu, baru unduh.**
+
+```bash
+./siakad bap --tahun 2025 --semester 2 --hanya-daftar
+./siakad bap --tahun 2025 --semester 2 --tujuan bukti/pengajaran
+```
+
+## Semua sub-perintah
+
+Dijalankan dari akar proyek, yaitu direktori berisi `siakad`.
 
 ```bash
 ./siakad bap ...        # unduh bukti BAP & kehadiran
@@ -28,6 +55,7 @@ Menghasilkan dua PDF per kelas pada satu periode:
 | `--prodi`        |       | Kode prodi, mis. `TI`. Kosong berarti semua prodi               |
 | `--kode`         |       | Batasi ke satu kode mata kuliah, mis. `IF30812`                 |
 | `--tanggal`      |       | Tanggal pada blok tanda tangan; bawaannya hari ini              |
+| `--tanda-tangan` |       | Folder berkas tanda tangan; bawaannya `digital_signs`           |
 | `--timpa`        |       | Tulis ulang berkas yang sudah ada                               |
 | `--tanpa-ttd`    |       | Cetak polos, tanpa paraf dan tanda tangan                       |
 | `--hanya-daftar` |       | Tampilkan kelasnya saja, tanpa mengunduh                        |

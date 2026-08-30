@@ -1,0 +1,58 @@
+# Setelan non-rahasia SIAKAD MCP.
+#
+# Salin ke siakad.yaml lalu ubah yang perlu saja — semua baris di bawah boleh
+# tetap dikomentari, nilai bawaannya sudah tertulis di tiap baris.
+#
+# Rahasia TIDAK ditaruh di sini. Username dan password ada di .env, yang tidak
+# pernah ikut ter-commit. Berkas ini aman dibagikan ke sesama pemakai satu
+# perguruan tinggi.
+#
+# Urutan yang menang: environment -> .env -> siakad.yaml -> nilai bawaan.
+# Di environment dan .env namanya berawalan SIAKAD_ dan huruf besar
+# (SIAKAD_BASE_URL); di berkas ini tanpa awalan dan huruf kecil (base_url).
+
+# --- Instance SIAKAD -------------------------------------------------------
+# Ganti kalau perguruan tinggi Anda memakai alamat lain.
+# base_url: https://siakad.pradita.ac.id
+# nama_instansi: Pradita          # hanya label pada judul API dan instruksi MCP
+
+# Path menu di dalam SIAKAD. Ubah hanya kalau instance Anda menaruhnya di
+# alamat yang berbeda.
+# path_login: /login_process
+# path_laporan: /report/berita_acara_kuliah
+
+# --- Blok tanda tangan -----------------------------------------------------
+# Kota pada blok tanda tangan pejabat. Nilainya dipakai untuk MENEMUKAN blok itu
+# di halaman cetak, jadi harus sama persis dengan yang dicetak SIAKAD Anda —
+# kalau salah, tanda tangan pejabat tidak akan terpasang.
+# kota: Tangerang
+
+# Tinggi gambar dalam piksel; lebarnya mengikuti rasio asli.
+# tinggi_paraf_px: 58
+# tinggi_ttd_px: 120
+
+# --- Ukuran kertas ---------------------------------------------------------
+# Halaman dari SIAKAD tidak menentukan ukuran kertas, jadi ditetapkan di sini.
+# BAP lebih lebar karena tabelnya banyak kolom.
+# ukuran_bap: A3
+# ukuran_kehadiran: A4
+
+# --- Pencetakan ------------------------------------------------------------
+# Biner Chrome/Chromium. Kosongkan supaya dicari sendiri di PATH; isi kalau
+# binernya tidak ada di PATH atau ada lebih dari satu peramban terpasang.
+# chrome: /usr/bin/google-chrome
+
+# batas_cetak_detik: 180        # batas waktu satu proses Chrome
+# jatah_muat_ms: 15000          # waktu tunggu CSS dan gambar sebelum dicetak
+
+# --- Batas waktu jaringan --------------------------------------------------
+# Naikkan kalau jaringan ke SIAKAD lambat.
+# batas_login_detik: 60
+# batas_halaman_detik: 120      # GET halaman biasa
+# batas_kirim_detik: 300        # POST form, termasuk unggah berkas
+# batas_laporan_detik: 300      # endpoint laporan; ekspor bisa lama
+
+# --- Lain-lain -------------------------------------------------------------
+# baris_per_halaman: 15         # ukuran halaman hasil pencarian, ikut server
+# umur_sesi_detik: 900          # lama sesi login disimpan REST API
+# user_agent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"

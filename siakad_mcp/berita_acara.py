@@ -18,17 +18,29 @@ from pathlib import Path
 
 from bs4 import BeautifulSoup
 
-from cetak_pdf import cetak_html_ke_pdf
-from siakad_client import SIAKAD_BASE_URL, KlienSiakad, SiakadError
-from tanda_tangan import sisipkan_tanda_tangan
+from siakad_mcp.cetak_pdf import cetak_html_ke_pdf
+from siakad_mcp.konfigurasi import baca_angka, baca_pengaturan
+from siakad_mcp.siakad_client import KlienSiakad, SiakadError
+from siakad_mcp.tanda_tangan import sisipkan_tanda_tangan
 
-PATH_LAPORAN = "/report/berita_acara_kuliah"
-BARIS_PER_HALAMAN = 15
+PATH_LAPORAN_BAWAAN = "/report/berita_acara_kuliah"
+BARIS_PER_HALAMAN_BAWAAN = 15
+BATAS_LAPORAN_BAWAAN_DETIK = 300
 
-# jenis bukti -> (endpoint ekspor, akhiran nama berkas, ukuran kertas)
+
+def path_laporan() -> str:
+    """Path menu Berita Acara; instance lain bisa menaruhnya di alamat berbeda."""
+    return baca_pengaturan("SIAKAD_PATH_LAPORAN", PATH_LAPORAN_BAWAAN)
+
+
+def baris_per_halaman() -> int:
+    """Jumlah baris per halaman hasil pencarian, mengikuti setelan server."""
+    return baca_angka("SIAKAD_BARIS_PER_HALAMAN", BARIS_PER_HALAMAN_BAWAAN)
+
+# jenis bukti -> (endpoint ekspor, akhiran nama berkas, kunci setelan ukuran kertas)
 JENIS_BUKTI = {
-    "bap": ("export_pdf_topik_pembahasan", "BAP", "A3"),
-    "kehadiran": ("export_pdf_absensi_mahasiswa", "Kehadiran", "A4"),
+    "bap": ("export_pdf_topik_pembahasan", "BAP", "SIAKAD_UKURAN_BAP", "A3"),
+    "kehadiran": ("export_pdf_absensi_mahasiswa", "Kehadiran", "SIAKAD_UKURAN_KEHADIRAN", "A4"),
 }
 
 
@@ -98,17 +110,17 @@ class BeritaAcaraKuliah:
     def token(self) -> str:
         """Token CSRF halaman laporan, diambil sekali lalu dipakai ulang."""
         if not self._token:
-            sup = BeautifulSoup(self.klien.ambil_halaman(PATH_LAPORAN).text, "lxml")
+            sup = BeautifulSoup(self.klien.ambil_halaman(path_laporan()).text, "lxml")
             self._token = self.klien.baca_token_csrf(sup)
         return self._token
 
     def kirim(self, endpoint: str, muatan: dict):
         """POST ke salah satu endpoint laporan dengan token CSRF yang benar."""
         return self.klien.sesi_http.post(
-            f"{SIAKAD_BASE_URL}{PATH_LAPORAN}/{endpoint}",
+            f"{self.klien.base_url}{path_laporan()}/{endpoint}",
             headers={"X-CSRF-TOKEN": self.token(), "X-Requested-With": "XMLHttpRequest"},
             data={"_token": self.token(), **muatan},
-            timeout=300,
+            timeout=baca_angka("SIAKAD_BATAS_LAPORAN_DETIK", BATAS_LAPORAN_BAWAAN_DETIK),
         )
 
     def daftar_kelas(
@@ -134,7 +146,7 @@ class BeritaAcaraKuliah:
             isi = jawaban.json().get("rs_data", {})
             baris = isi.get("data") or []
             semua.extend(Kelas.dari_baris(satu) for satu in baris)
-            if len(baris) < BARIS_PER_HALAMAN or len(semua) >= int(isi.get("total") or 0):
+            if len(baris) < baris_per_halaman() or len(semua) >= int(isi.get("total") or 0):
                 return semua
             halaman += 1
 
@@ -150,7 +162,7 @@ class BeritaAcaraKuliah:
         if jenis not in JENIS_BUKTI:
             raise SiakadError(f"Jenis bukti '{jenis}' tidak dikenal: {', '.join(JENIS_BUKTI)}")
 
-        endpoint, _, _ = JENIS_BUKTI[jenis]
+        endpoint, _, _, _ = JENIS_BUKTI[jenis]
         # endpoint ekspor memakai nama field huruf kecil, berbeda dari endpoint detail
         jawaban = self.kirim(
             endpoint,
@@ -177,9 +189,15 @@ class BeritaAcaraKuliah:
         timpa: bool = False,
         bertanda_tangan: bool = True,
         tanggal_tanda_tangan: str = "",
+        dir_tanda_tangan: str | Path | None = None,
     ) -> Path:
-        """Simpan satu bukti (bap/kehadiran) sebagai PDF di direktori tujuan."""
-        _, akhiran, ukuran = JENIS_BUKTI[jenis]
+        """Simpan satu bukti (bap/kehadiran) sebagai PDF di direktori tujuan.
+
+        `dir_tanda_tangan` menimpa letak folder tanda tangan; kosong berarti
+        ikut urutan pencarian bawaan.
+        """
+        _, akhiran, kunci_ukuran, ukuran_bawaan = JENIS_BUKTI[jenis]
+        ukuran = baca_pengaturan(kunci_ukuran, ukuran_bawaan)
         tujuan = Path(dir_tujuan) / kelas.nama_berkas(akhiran)
         if tujuan.is_file() and not timpa:
             return tujuan
@@ -187,5 +205,7 @@ class BeritaAcaraKuliah:
         html = self.halaman_cetak(kelas, jenis)
         # hanya halaman BAP yang punya kolom paraf dan blok tanda tangan pejabat
         if bertanda_tangan and jenis == "bap":
-            html = sisipkan_tanda_tangan(html, kelas.nama_dosen, tanggal=tanggal_tanda_tangan)
+            html = sisipkan_tanda_tangan(
+                html, kelas.nama_dosen, tanggal=tanggal_tanda_tangan, direktori=dir_tanda_tangan
+            )
         return cetak_html_ke_pdf(html, tujuan, ukuran=ukuran)

@@ -12,20 +12,42 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from siakad_mcp.konfigurasi import baca_angka, baca_pengaturan
+
+
+class CetakError(RuntimeError):
+    """Pencetakan PDF gagal — Chrome tidak ada, atau hasilnya kosong.
+
+    Sengaja bukan SystemExit: pustaka tidak boleh menghentikan program yang
+    memakainya. Titik masuk CLI-lah yang menangkap ini dan keluar dengan rapi.
+    """
+
 # ukuran kertas mengikuti hasil cetak manual yang sudah dipakai selama ini
 UKURAN_BAWAAN = "A4"
-BATAS_WAKTU_DETIK = 180
+BATAS_WAKTU_BAWAAN_DETIK = 180
+# waktu tunggu Chrome memuat CSS dan gambar sebelum halaman dicetak
+JATAH_MUAT_BAWAAN_MS = 15000
 
 KANDIDAT_CHROME = ["google-chrome", "chromium", "chromium-browser", "google-chrome-stable"]
 
 
 def cari_chrome() -> str:
-    """Cari Chrome/Chromium yang terpasang; kesalahan dijelaskan kalau tidak ada."""
+    """Chrome/Chromium yang dipakai mencetak.
+
+    SIAKAD_CHROME dipakai kalau diisi — perlu di mesin yang binernya tidak ada
+    di PATH atau memasang lebih dari satu peramban.
+    """
+    ditetapkan = baca_pengaturan("SIAKAD_CHROME")
+    if ditetapkan:
+        if not shutil.which(ditetapkan) and not Path(ditetapkan).is_file():
+            raise CetakError(f"SIAKAD_CHROME menunjuk {ditetapkan}, tapi berkasnya tidak ada")
+        return ditetapkan
+
     for nama in KANDIDAT_CHROME:
         lokasi = shutil.which(nama)
         if lokasi:
             return lokasi
-    raise SystemExit(
+    raise CetakError(
         "Chrome/Chromium tidak ditemukan. Pasang salah satunya, atau simpan "
         "halaman cetaknya lalu cetak manual dari browser."
     )
@@ -60,14 +82,14 @@ def cetak_html_ke_pdf(html: str, tujuan: Path, *, ukuran: str = UKURAN_BAWAAN) -
             "--no-sandbox",
             f"--user-data-dir={ruang / 'profil'}",
             # beri waktu CSS dan gambar dari server SIAKAD selesai dimuat
-            "--virtual-time-budget=15000",
+            f"--virtual-time-budget={baca_angka('SIAKAD_JATAH_MUAT_MS', JATAH_MUAT_BAWAAN_MS)}",
             "--no-pdf-header-footer",
             f"--print-to-pdf={tujuan}",
             sumber.as_uri(),
         ]
-        hasil = subprocess.run(perintah, capture_output=True, timeout=BATAS_WAKTU_DETIK)
+        hasil = subprocess.run(perintah, capture_output=True, timeout=baca_angka("SIAKAD_BATAS_CETAK_DETIK", BATAS_WAKTU_BAWAAN_DETIK))
 
     if not tujuan.is_file() or tujuan.stat().st_size == 0:
         pesan = (hasil.stderr or b"").decode(errors="ignore")[-400:]
-        raise SystemExit(f"Gagal mencetak {tujuan.name}: {pesan}")
+        raise CetakError(f"Gagal mencetak {tujuan.name}: {pesan}")
     return tujuan

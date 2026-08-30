@@ -17,27 +17,44 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
-from dependensi import pastikan_dependensi
 
-# harus dipanggil sebelum impor paket pihak ketiga di bawahnya
-pastikan_dependensi("api")
-
-from fastapi import FastAPI, HTTPException
+from fastapi import APIRouter, FastAPI, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field
 
-from berita_acara import JENIS_BUKTI, BeritaAcaraKuliah, Kelas
-from konfigurasi import AKAR_PROYEK, DIR_DATA
-from siakad_client import KlienSiakad, SiakadError
-
-app = FastAPI(
-    title="SIAKAD Pradita API",
-    version="1.0.0",
-    description="Ambil bukti pengajaran dari SIAKAD: daftar kelas, berita acara, BAP, kehadiran.",
+from siakad_mcp.berita_acara import JENIS_BUKTI, BeritaAcaraKuliah, Kelas
+from siakad_mcp.cetak_pdf import CetakError
+from siakad_mcp.konfigurasi import (
+    KonfigurasiError,
+    akar_proyek,
+    baca_angka,
+    baca_pengaturan,
+    dir_data,
 )
+from siakad_mcp.siakad_client import KlienSiakad, SiakadError
+
+# nama perguruan tinggi hanya untuk label; tidak memengaruhi perilaku apa pun
+NAMA_INSTANSI = baca_pengaturan("SIAKAD_NAMA_INSTANSI", "Pradita")
+
+# Rute dikumpulkan di router, bukan langsung di app, supaya proyek lain bisa
+# menempelkannya ke aplikasi FastAPI miliknya sendiri:
+#     from siakad_mcp.api import router
+#     app_saya.include_router(router, prefix="/siakad")
+router = APIRouter()
+
+
+def buat_app() -> FastAPI:
+    """Aplikasi FastAPI berdiri sendiri yang hanya berisi rute paket ini."""
+    app = FastAPI(
+        title=f"SIAKAD {NAMA_INSTANSI} API",
+        version="1.0.0",
+        description="Ambil bukti pengajaran dari SIAKAD: daftar kelas, berita acara, BAP, kehadiran.",
+    )
+    app.include_router(router)
+    return app
 
 # satu sesi login dipakai ulang selama masih segar
-UMUR_SESI_DETIK = 900
+UMUR_SESI_DETIK = baca_angka("SIAKAD_UMUR_SESI_DETIK", 900)
 sesi_tersimpan: dict[str, tuple[float, KlienSiakad]] = {}
 
 
@@ -57,6 +74,9 @@ class PermintaanBukti(PermintaanPeriode):
     jenis: str = Field(default="bap", description="bap atau kehadiran")
     tujuan: str = Field(default="", description="Direktori penyimpanan; kosong = data/bap")
     tanggal: str = Field(default="", description="Tanggal pada blok tanda tangan")
+    tanda_tangan: str = Field(
+        default="", description="Folder berkas tanda tangan; kosong = digital_signs di akar proyek"
+    )
     timpa: bool = False
     bertanda_tangan: bool = True
 
@@ -88,18 +108,18 @@ def cari_kelas(permintaan: PermintaanPeriode) -> list[Kelas]:
     return kelas
 
 
-@app.post("/sesi", summary="Cek kredensial SIAKAD")
+@router.post("/sesi", summary="Cek kredensial SIAKAD")
 def cek_sesi(kredensial: Kredensial):
     laporan = ambil_laporan(kredensial)
     return {"ok": True, "beranda": laporan.klien.url_beranda}
 
 
-@app.post("/kelas", summary="Kelas yang diampu pada satu periode")
+@router.post("/kelas", summary="Kelas yang diampu pada satu periode")
 def daftar_kelas(permintaan: PermintaanPeriode):
     return {"data": [satu.__dict__ | {"label": satu.label} for satu in cari_kelas(permintaan)]}
 
 
-@app.post("/berita-acara", summary="Topik pembahasan dan rekap kehadiran satu kelas")
+@router.post("/berita-acara", summary="Topik pembahasan dan rekap kehadiran satu kelas")
 def berita_acara(permintaan: PermintaanPeriode):
     kelas = cari_kelas(permintaan)
     if not kelas:
@@ -108,7 +128,7 @@ def berita_acara(permintaan: PermintaanPeriode):
     return {"kelas": kelas[0].label, "detail": laporan.detail(kelas[0])}
 
 
-@app.post("/bukti/halaman", summary="Halaman cetak BAP/kehadiran (HTML)", response_class=HTMLResponse)
+@router.post("/bukti/halaman", summary="Halaman cetak BAP/kehadiran (HTML)", response_class=HTMLResponse)
 def halaman_bukti(permintaan: PermintaanBukti):
     kelas = cari_kelas(permintaan)
     if not kelas:
@@ -117,7 +137,7 @@ def halaman_bukti(permintaan: PermintaanBukti):
     return HTMLResponse(laporan.halaman_cetak(kelas[0], permintaan.jenis))
 
 
-@app.post("/bukti/pdf", summary="Unduh satu bukti sebagai PDF")
+@router.post("/bukti/pdf", summary="Unduh satu bukti sebagai PDF")
 def pdf_bukti(permintaan: PermintaanBukti):
     if permintaan.jenis not in JENIS_BUKTI:
         raise HTTPException(status_code=422, detail=f"Jenis harus salah satu dari {list(JENIS_BUKTI)}")
@@ -126,26 +146,27 @@ def pdf_bukti(permintaan: PermintaanBukti):
     if not kelas:
         raise HTTPException(status_code=404, detail="Tidak ada kelas yang cocok")
 
-    tujuan = Path(permintaan.tujuan) if permintaan.tujuan else DIR_DATA / "bap"
+    tujuan = Path(permintaan.tujuan) if permintaan.tujuan else dir_data() / "bap"
     if not tujuan.is_absolute():
-        tujuan = AKAR_PROYEK / tujuan
+        tujuan = akar_proyek() / tujuan
     laporan = ambil_laporan(permintaan)
     berkas = laporan.unduh_bukti(
         kelas[0], permintaan.jenis, tujuan,
         timpa=permintaan.timpa,
         bertanda_tangan=permintaan.bertanda_tangan,
         tanggal_tanda_tangan=permintaan.tanggal,
+        dir_tanda_tangan=permintaan.tanda_tangan or None,
     )
     return FileResponse(berkas, media_type="application/pdf", filename=berkas.name)
 
 
-@app.post("/bukti/semua", summary="Unduh BAP dan kehadiran seluruh kelas satu periode")
+@router.post("/bukti/semua", summary="Unduh BAP dan kehadiran seluruh kelas satu periode")
 def semua_bukti(permintaan: PermintaanBukti):
     """Berkas yang sudah ada dilewati, kecuali `timpa` bernilai true."""
     kelas = cari_kelas(permintaan)
-    tujuan = Path(permintaan.tujuan) if permintaan.tujuan else DIR_DATA / "bap"
+    tujuan = Path(permintaan.tujuan) if permintaan.tujuan else dir_data() / "bap"
     if not tujuan.is_absolute():
-        tujuan = AKAR_PROYEK / tujuan
+        tujuan = akar_proyek() / tujuan
 
     laporan = ambil_laporan(permintaan)
     dihasilkan, gagal = [], []
@@ -157,8 +178,12 @@ def semua_bukti(permintaan: PermintaanBukti):
                     timpa=permintaan.timpa,
                     bertanda_tangan=permintaan.bertanda_tangan,
                     tanggal_tanda_tangan=permintaan.tanggal,
+                    dir_tanda_tangan=permintaan.tanda_tangan or None,
                 )
                 dihasilkan.append(berkas.name)
-            except (SiakadError, SystemExit) as galat:
+            except (SiakadError, CetakError, KonfigurasiError) as galat:
                 gagal.append({"kelas": satu.label, "jenis": jenis, "pesan": str(galat)})
     return {"tujuan": str(tujuan), "berkas": dihasilkan, "gagal": gagal}
+
+
+app = buat_app()

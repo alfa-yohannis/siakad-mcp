@@ -6,34 +6,33 @@ bisa mengambil sendiri bukti pengajaran (BAP dan daftar kehadiran) untuk BKD.
 Kredensial boleh dikirim per pemanggilan, atau dibiarkan kosong supaya jatuh ke
 SIAKAD_USERNAME / SIAKAD_PASSWORD di berkas .env.
 
-Daftarkan ke Claude Code (pakai path absolut ke launcher `siakad`):
-    claude mcp add bkd-siakad -- /path/ke/siakad-mcp/siakad mcp
+Daftarkan ke Claude Code (perintah `siakad-mcp` ikut terpasang bersama paketnya):
+    claude mcp add bkd-siakad -- siakad-mcp
 """
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
-
-# supaya modul tetangga tetap terbaca saat server dijalankan dari direktori mana pun
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-from dependensi import pastikan_dependensi
-
-# harus dipanggil sebelum impor paket pihak ketiga di bawahnya
-pastikan_dependensi("mcp")
 
 from mcp.server.mcpserver import MCPServer
 
-from berita_acara import JENIS_BUKTI, BeritaAcaraKuliah
-from konfigurasi import AKAR_PROYEK, DIR_DATA
-from siakad_client import KlienSiakad, SiakadError
+from siakad_mcp import __version__
+from siakad_mcp.berita_acara import JENIS_BUKTI, BeritaAcaraKuliah
+from siakad_mcp.cetak_pdf import CetakError
+from siakad_mcp.konfigurasi import KonfigurasiError, akar_proyek, baca_pengaturan, dir_data
+from siakad_mcp.siakad_client import SIAKAD_BASE_URL_BAWAAN, KlienSiakad, SiakadError
+
+# instruksi menyebut instansi dan alamatnya supaya asisten tahu sistem mana yang
+# sedang dipakai; keduanya ikut setelan, bukan ditanam di teks
+NAMA_INSTANSI = baca_pengaturan("SIAKAD_NAMA_INSTANSI", "Pradita")
+ALAMAT_INSTANSI = baca_pengaturan("SIAKAD_BASE_URL", SIAKAD_BASE_URL_BAWAAN)
 
 server = MCPServer(
     name="bkd-siakad",
+    version=__version__,
     instructions=(
-        "Mengambil bukti pengajaran dosen dari SIAKAD Pradita "
-        "(siakad.pradita.ac.id) untuk keperluan BKD. Urutan yang disarankan: "
+        f"Mengambil bukti pengajaran dosen dari SIAKAD {NAMA_INSTANSI} "
+        f"({ALAMAT_INSTANSI}) untuk keperluan BKD. Urutan yang disarankan: "
         "daftar_kelas untuk melihat kelas satu periode, lalu unduh_bukti atau "
         "unduh_semua_bukti untuk menghasilkan PDF BAP dan daftar kehadiran."
     ),
@@ -47,8 +46,8 @@ def buka_laporan(username: str = "", password: str = "") -> BeritaAcaraKuliah:
 
 def tentukan_tujuan(tujuan: str):
     """Direktori penyimpanan PDF; path relatif dihitung dari akar proyek."""
-    lokasi = Path(tujuan) if tujuan else DIR_DATA / "bap"
-    return lokasi if lokasi.is_absolute() else AKAR_PROYEK / lokasi
+    lokasi = Path(tujuan) if tujuan else dir_data() / "bap"
+    return lokasi if lokasi.is_absolute() else akar_proyek() / lokasi
 
 
 @server.tool()
@@ -106,6 +105,7 @@ def unduh_semua_bukti(
     prodi: str = "",
     kode_mk: str = "",
     tanggal: str = "",
+    tanda_tangan: str = "",
     timpa: bool = False,
     bertanda_tangan: bool = True,
     username: str = "",
@@ -114,7 +114,8 @@ def unduh_semua_bukti(
     """Hasilkan PDF BAP dan Kehadiran untuk seluruh kelas pada satu periode.
 
     Berkas yang sudah ada dilewati kecuali `timpa` bernilai True. Halaman BAP
-    dibubuhi paraf dosen dan tanda tangan pejabat dari folder digital_signs.
+    dibubuhi paraf dosen dan tanda tangan pejabat dari folder `tanda_tangan`;
+    kalau dikosongkan, dipakai folder digital_signs di akar proyek.
     """
     laporan = buka_laporan(username, password)
     lokasi = tentukan_tujuan(tujuan)
@@ -129,12 +130,18 @@ def unduh_semua_bukti(
                 berkas = laporan.unduh_bukti(
                     satu, jenis, lokasi,
                     timpa=timpa, bertanda_tangan=bertanda_tangan, tanggal_tanda_tangan=tanggal,
+                    dir_tanda_tangan=tanda_tangan or None,
                 )
                 dihasilkan.append(str(berkas))
-            except (SiakadError, SystemExit) as galat:
+            except (SiakadError, CetakError, KonfigurasiError) as galat:
                 gagal.append({"kelas": satu.label, "jenis": jenis, "pesan": str(galat)})
     return {"tujuan": str(lokasi), "berkas": dihasilkan, "gagal": gagal}
 
 
-if __name__ == "__main__":
+def jalankan() -> None:
+    """Titik masuk perintah `siakad-mcp` (stdio)."""
     server.run()
+
+
+if __name__ == "__main__":
+    jalankan()
